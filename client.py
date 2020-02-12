@@ -94,30 +94,30 @@ def server_process():
     global dest_name
     global last_inserted_msg
     while True:
-        try:
-            if allow_receiving:
-                response = client.recv(constants.MAX_SIZE).decode()
-                if response is not None:
-                    if response.startswith(Protocol.response_who.value):
-                        online_users = response.rsplit(Protocol.response_who.value + " ", 1)[1].rstrip("\n").split(",")
-                        print("The online users in the network are: ")
-                        for user in online_users:
-                            print(user)
-                    if response.startswith(Protocol.response_send.value):
-                        print("You sent a message to " + dest_name + ": " + last_inserted_msg)
-                    if response.startswith(Protocol.bad_request_header.value):
-                        print("Your message contains an error in the header. Please resend")
-                    if response.startswith(Protocol.bad_request_body.value):
-                        print("Your message contains an error in the body. Please resend")
-                    if response.startswith(Protocol.unknown.value):
-                        print("The user you sent the message to does not exist.")
-                    if response.startswith(Protocol.delivery.value):
-                        received = response.split(" ", 1)[1].split(" ", 1)
-                        print("Message from: " + received[0]) # Gets username
-                        print("Contents: " + received[1]) # Gets message
-        except ConnectionAbortedError:
-            print("Goodbye.")
-            break
+        # try:
+        if allow_receiving:
+            response = client.recv(constants.MAX_SIZE).decode()
+            if response is not None:
+                if response.startswith(Protocol.response_who.value):
+                    online_users = response.rsplit(Protocol.response_who.value + " ", 1)[1].rstrip("\n").split(",")
+                    print("The online users in the network are: ")
+                    for user in online_users:
+                        print(user)
+                if response.startswith(Protocol.response_send.value):
+                    print("You sent a message to " + dest_name + ": " + last_inserted_msg)
+                if response.startswith(Protocol.bad_request_header.value):
+                    print("Your message contains an error in the header. Please resend")
+                if response.startswith(Protocol.bad_request_body.value):
+                    print("Your message contains an error in the body. Please resend")
+                if response.startswith(Protocol.unknown.value):
+                    print("The user you sent the message to does not exist.")
+                if response.startswith(Protocol.delivery.value):
+                    received = response.split(" ", 1)[1].split(" ", 1)
+                    print("Message from: " + received[0]) # Gets username
+                    print("Contents: " + received[1]) # Gets message
+        # except ConnectionAbortedError:
+        #     print("Goodbye.")
+        #     break
 
 
 
