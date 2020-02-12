@@ -20,6 +20,15 @@ username = None
 dest_name = None
 last_inserted_msg = None
 
+def receive_response():
+    response_text = ""
+    while True:
+        response  = client.recv(1).decode()
+        response_text += response
+        if response == "\n":
+            return response_text
+
+
 def client_process():
     """
         client_process
@@ -44,12 +53,11 @@ def client_process():
         else:
             bytes_to_send = Protocol.request_handshake.value.replace("<name>", username).encode()
             client.sendall(bytes_to_send)
-            response = client.recv(constants.MAX_SIZE).decode()
+            response = receive_response()
             if response.startswith(Protocol.in_use.value):
                 username = None
                 # the server killed the connection so we reconnect...
                 client.close()
-                time.sleep(3)
                 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 client.connect((constants.HOST, constants.PORT))
                 print("Username is already taken, please insert another username: ")
@@ -94,30 +102,31 @@ def server_process():
     global dest_name
     global last_inserted_msg
     while True:
-        try:
             if allow_receiving:
-                response = client.recv(constants.MAX_SIZE).decode()
-                if response is not None:
-                    if response.startswith(Protocol.response_who.value):
-                        online_users = response.rsplit(Protocol.response_who.value + " ", 1)[1].rstrip("\n").split(",")
-                        print("The online users in the network are: ")
-                        for user in online_users:
-                            print(user)
-                    if response.startswith(Protocol.response_send.value):
-                        print("You sent a message to " + dest_name + ": " + last_inserted_msg)
-                    if response.startswith(Protocol.bad_request_header.value):
-                        print("Your message contains an error in the header. Please resend")
-                    if response.startswith(Protocol.bad_request_body.value):
-                        print("Your message contains an error in the body. Please resend")
-                    if response.startswith(Protocol.unknown.value):
-                        print("The user you sent the message to does not exist.")
-                    if response.startswith(Protocol.delivery.value):
-                        received = response.split(" ", 1)[1].split(" ", 1)
-                        print("Message from: " + received[0]) # Gets username
-                        print("Contents: " + received[1]) # Gets message
-        except ConnectionAbortedError:
-            print("Goodbye.")
-            break
+                try:
+                    response = receive_response()
+                    if response is not None:
+                        if response.startswith(Protocol.response_who.value):
+                            print("Get in?")
+                            online_users = response.rsplit(Protocol.response_who.value + " ", 1)[1].rstrip("\n").split(",")
+                            print("The online users in the network are: ")
+                            for user in online_users:
+                                print(user)
+                        if response.startswith(Protocol.response_send.value):
+                            print("You sent a message to " + dest_name + ": " + last_inserted_msg)
+                        if response.startswith(Protocol.bad_request_header.value):
+                            print("Your message contains an error in the header. Please resend")
+                        if response.startswith(Protocol.bad_request_body.value):
+                            print("Your message contains an error in the body. Please resend")
+                        if response.startswith(Protocol.unknown.value):
+                            print("The user you sent the message to does not exist.")
+                        if response.startswith(Protocol.delivery.value):
+                            received = response.split(" ", 1)[1].split(" ", 1)
+                            print("Message from: " + received[0]) # Gets username
+                            print("Contents: " + received[1]) # Gets message
+                except ConnectionAbortedError:
+                    print("Goodbye.")
+                    break
 
 
 
