@@ -52,7 +52,7 @@ if (buffer == (Command.secondHandshake.value.encode() + username + endOfMessage)
     while(True):
         instruct = input("What do you want to do? (type !quit to exit, type !who to see logged in users, to send a message @username message): \n")
         if (instruct == "!quit"):
-            break
+            break2e
         elif (instruct == "!who"):
             num_bytes_sent = s.send(Command.who.value.encode())
             buffer = s.recv(2024).decode()
@@ -79,10 +79,7 @@ if (buffer == (Command.secondHandshake.value.encode() + username + endOfMessage)
         else:
             print("Instruction is unknown.")
 else:
-    print("Either the maximum amount of client connections have been reached or the server is offline.")
-
-#5. Send messages to other users by typing @username message.
-# 6. Receive messages from other users and display them to the user.
+    print("Either the maximum amount of client connections have been reached or the server is offline. Or you entered spaced in the username!")
 
 
 s.close()
