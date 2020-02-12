@@ -12,7 +12,6 @@ import socket
 import threading
 import constants
 from protocol import Protocol
-import command_handlers
 import time
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Define the client from beginning so it can be accessed by other files
