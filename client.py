@@ -12,7 +12,6 @@ import socket
 import threading
 import constants
 from protocol import Protocol
-import command_handlers
 import time
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Define the client from beginning so it can be accessed by other files
@@ -80,7 +79,7 @@ def client_process():
             bytes_to_send = Protocol.request_send.value.replace("<user>", dest_name).replace("<msg>", last_inserted_msg).encode()
             client.sendall(bytes_to_send)
         elif command.startswith("!quit"):
-            print("Goodbye.")
+            client.close()
             break
         else:
             print("Unknown command. Please access !help to learn about the available commands.")
@@ -95,26 +94,31 @@ def server_process():
     global dest_name
     global last_inserted_msg
     while True:
-        if allow_receiving:
-            response = client.recv(constants.MAX_SIZE).decode()
-            if response is not None:
-                if response.startswith(Protocol.response_who.value):
-                    online_users = response.rsplit(Protocol.response_who.value + " ", 1)[1].rstrip("\n").split(",")
-                    print("The online users in the network are: ")
-                    for user in online_users:
-                        print(user)
-                if response.startswith(Protocol.response_send.value):
-                    print("You sent a message to " + dest_name + ": " + last_inserted_msg)
-                if response.startswith(Protocol.bad_request_header.value):
-                    print("Your message contains an error in the header. Please resend")
-                if response.startswith(Protocol.bad_request_body.value):
-                    print("Your message contains an error in the body. Please resend")
-                if response.startswith(Protocol.unknown.value):
-                    print("The user you sent the message to does not exist.")
-                if response.startswith(Protocol.delivery.value):
-                    received = response.split(" ", 1)[1].split(" ", 1)
-                    print("Message from: " + received[0]) # Gets username
-                    print("Contents: " + received[1]) # Gets message
+        try:
+            if allow_receiving:
+                response = client.recv(constants.MAX_SIZE).decode()
+                if response is not None:
+                    if response.startswith(Protocol.response_who.value):
+                        online_users = response.rsplit(Protocol.response_who.value + " ", 1)[1].rstrip("\n").split(",")
+                        print("The online users in the network are: ")
+                        for user in online_users:
+                            print(user)
+                    if response.startswith(Protocol.response_send.value):
+                        print("You sent a message to " + dest_name + ": " + last_inserted_msg)
+                    if response.startswith(Protocol.bad_request_header.value):
+                        print("Your message contains an error in the header. Please resend")
+                    if response.startswith(Protocol.bad_request_body.value):
+                        print("Your message contains an error in the body. Please resend")
+                    if response.startswith(Protocol.unknown.value):
+                        print("The user you sent the message to does not exist.")
+                    if response.startswith(Protocol.delivery.value):
+                        received = response.split(" ", 1)[1].split(" ", 1)
+                        print("Message from: " + received[0]) # Gets username
+                        print("Contents: " + received[1]) # Gets message
+        except ConnectionAbortedError:
+            print("Goodbye.")
+            break
+
 
 
 
@@ -128,5 +132,4 @@ if __name__ == '__main__':
     thread_resp.start()
     thread_req.join()
     thread_resp.join()
-    socket.close()
 
