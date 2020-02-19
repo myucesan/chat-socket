@@ -54,30 +54,31 @@ def client_process():
             request = Protocol.request_handshake.value + " " + username + "\n"
             client.sendall(request.encode())
             response = receive_response()
-            if response.startswith(Protocol.in_use.value):
+            response = response.split(" ", 1)
+            if response[0] == Protocol.in_use.value:
                 username = None
                 # the server killed the connection so we reconnect...
                 client.close()
                 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 client.connect((constants.HOST, constants.PORT))
                 print("Username is already taken, please insert another username: ")
-            elif response.startswith(Protocol.busy.value):
+            elif response[0] == Protocol.busy.value:
                 print("Sorry, but you cannot login right now, as the maximum number of clients has been reached. Try again later!")
                 time.sleep(10)
                 print("Hello there! What is your name?: ")
-            elif response.startswith(Protocol.response_handshake.value):
+            elif response[0] == Protocol.response_handshake.value:
                 print("Welcome " + str(username) + "! What would you like to do? Please write !help to see the commands.")
                 allow_receiving = True
     while True:
         command = input()
-        if command.startswith("!help"):
+        if command == "!help":
             print("The following commands are available: ")
             print("!help                - Prints the available commands")
             print("!who                 - List all currently logged-in users. Can only be used after you succesfully connect to the server!")
             print("!quit                - Shut down the client")
             print("@username <message>  - Send a message to an user in the server. Can only be used after you succesfully connect to the server!")
 
-        elif command.startswith("!who"):
+        elif command == "!who":
             request = Protocol.request_who.value + "\n"
             client.sendall(request.encode())
         elif command.startswith("@"):
@@ -86,7 +87,7 @@ def client_process():
             last_inserted_msg = details[1]
             request = Protocol.request_send.value + " " + dest_name + " " + last_inserted_msg + "\n"
             client.sendall(request.encode())
-        elif command.startswith("!quit"):
+        elif command == "!quit":
             client.close()
             break
         else:
@@ -105,22 +106,23 @@ def server_process():
             if allow_receiving:
                 try:
                     response = receive_response()
+                    response = response.split(" ", 1)
                     if response is not None:
-                        if response.startswith(Protocol.response_who.value):
-                            online_users = response.split(Protocol.response_who.value + " ", 1)[1].rstrip("\n").split(",")
+                        if response[0] == Protocol.response_who.value:
+                            online_users = response[1].split(",")
                             print("The online users in the network are: ")
                             for user in online_users:
                                 print(user)
-                        if response.startswith(Protocol.response_send.value):
+                        if response[0] == Protocol.response_send.value:
                             print("You sent a message to " + dest_name + ": " + last_inserted_msg)
-                        if response.startswith(Protocol.bad_request_header.value):
+                        if response[0] == Protocol.bad_request_header.value:
                             print("Your message contains an error in the header. Please resend")
-                        if response.startswith(Protocol.bad_request_body.value):
+                        if response[0] == Protocol.bad_request_body.value:
                             print("Your message contains an error in the body. Please resend")
-                        if response.startswith(Protocol.unknown.value):
+                        if response[0] ==  Protocol.unknown.value:
                             print("The user you sent the message to does not exist.")
-                        if response.startswith(Protocol.delivery.value):
-                            received = response.split(" ", 1)[1].split(" ", 1)
+                        if response[0] == Protocol.delivery.value:
+                            received = response[1].split(" ", 1)
                             print("Message from: " + received[0]) # Gets username
                             print("Contents: " + received[1]) # Gets message
                 except ConnectionAbortedError:

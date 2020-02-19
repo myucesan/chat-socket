@@ -11,7 +11,7 @@ from enum import Enum
 class Protocol(Enum):
 
     request_handshake = "HELLO-FROM"
-    response_handshake = "HELLO <name>"
+    response_handshake = "HELLO"
     request_who = "WHO"
     response_who = "WHO-OK"
     request_send = "SEND"

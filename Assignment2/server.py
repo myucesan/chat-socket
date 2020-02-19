@@ -28,10 +28,11 @@ def handle_client_requests(client_socket, client_addr):
     while True:
         try:
             request = receive(client_socket)
+            request = request.split(" ", 1)
             if request is not None:
                 response = None
-                if request.startswith(Protocol.request_handshake.value):
-                    name = request.split(" ", 1)[1]
+                if request[0] == Protocol.request_handshake.value:
+                    name = request[1]
                     if len(clients.keys()) == constants.MAX_CLIENTS:
                         response = Protocol.busy.value + "\n"
                     elif " " in name:
@@ -40,21 +41,21 @@ def handle_client_requests(client_socket, client_addr):
                         response = Protocol.in_use.value + "\n"
                     else:
                         clients.update({client_addr: {"name": name, "socket": client_socket}})
-                        response = Protocol.response_handshake.value.replace("<name>", name) + "\n"
+                        response = Protocol.response_handshake.value + " " + name + "\n"
                 else:
                     if clients.get(client_addr) is None:
                         response = Protocol.bad_request_header.value + "\n"
-                    elif request.startswith(Protocol.request_who.value):
+                    elif request[0] == Protocol.request_who.value:
                         online_list = ""
                         for row in clients.values():
                             online_list += row["name"] + ","
                         online_list = online_list[:-1]
                         response = Protocol.response_who.value + " " + online_list + "\n"
-                    elif request.startswith(Protocol.request_send.value):
-                        request = request.split(" ", 2)
+                    elif request[0] == Protocol.request_send.value:
+                        request = request[1].split(" ", 1)
                         dest_user = None
-                        name = request[1]
-                        message = request[2]
+                        name = request[0]
+                        message = request[1]
                         for row in clients.values():
                             if row["name"] == name:
                                 dest_user = row
@@ -65,7 +66,7 @@ def handle_client_requests(client_socket, client_addr):
                             dest_user["socket"].sendall(message.encode())
                             response = Protocol.response_send.value + "\n" 
                     else:
-                        response = Protocol.bad_request_body.value.encode() + "\n"
+                        response = Protocol.bad_request_body.value + "\n"
                 client_socket.sendall(response.encode())
         except ConnectionResetError:
             clients.pop(client_addr)

@@ -14,7 +14,7 @@ class Protocol(Enum):
     response_handshake = "HELLO"
     request_who = "WHO"
     response_who = "WHO-OK"
-    request_send = "SEND l" # forced bug here
+    request_send = "SEND" # forced bug here
     response_send = "SEND-OK"
     unknown = "UNKNOWN"
     delivery = "DELIVERY"
