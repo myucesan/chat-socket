@@ -6,8 +6,8 @@
     PORT: the port of the host
 """
 
-# HOST = "18.195.107.195" 
-# PORT = 5378
+HOST = "18.195.107.195" 
+PORT = 5378
 
-HOST = "localhost" 
-PORT = 10203
+# HOST = "localhost" 
+# PORT = 10203
