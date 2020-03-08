@@ -15,3 +15,10 @@ When you start the program it connects to the supplied server (which, at this ti
 - !quit - used to disconnect from the server and end the program
 
 This client has been tested using Python3.
+
+# Unreliable UDP Network solutions
+
+- Flip bits:
+- Drop messages: Set socket on non-blocking. Add at sending client some variable that expects ACK, and keep checking after every little bit if ACK received. If not, retransmit. For receiving client, message may come, so add a list containing duplicate msgs so they wont be shown to client again. Remove it after a very small timer. 
+- Delays:
+- Bursts:
