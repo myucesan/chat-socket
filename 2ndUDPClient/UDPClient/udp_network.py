@@ -9,6 +9,7 @@ import copy
 
 NEW_LINE = "\n"
 MAX_WINDOW_NUMBER = 7
+INITIAL_SEQUENCE = "0A"
 
 # States
 ESCAPE = "/"
@@ -22,7 +23,7 @@ class UdpNetwork:
     
     RETRANSMISSION_TIME = 0.05
 
-    def __init__(self, host="18.195.107.195", port=5382):
+    def __init__(self, host="192.168.0.102", port=5382):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.server = (host, port)
         self.msg_received_list = dict()
@@ -38,7 +39,8 @@ class UdpNetwork:
         while True:
             sleep(6000)
             now = time()
-            for key in self.msg_received_list.keys():
+            copy_buffer = copy.deepcopy(self.msg_received_list)
+            for key in copy_buffer.keys():
                 if (now - self.msg_received_list[key]["receiveTime"]) > 9:
                     self.msg_received_list.pop(key)
 
@@ -49,31 +51,31 @@ class UdpNetwork:
             _message = self._encode_string(message)
             
             try:
-                if self.msg_send_list[dest_name]["window"]["seqNumber"]+1 > MAX_WINDOW_NUMBER:
-                    self.msg_send_list[dest_name]["window"]["seqNumber"] = 0
-                    if self.msg_send_list[dest_name]["window"]["currentWindow"] == "A":
-                        self.msg_send_list[dest_name]["window"]["currentWindow"] = "B"
-                    else:
-                        self.msg_send_list[dest_name]["window"]["currentWindow"] = "A"
-                else:
-                    self.msg_send_list[dest_name]["window"]["seqNumber"] = self.msg_send_list[dest_name]["window"]["seqNumber"] + 1 # Increment
-                _packet_details = self._encode_string(self.msg_send_list[dest_name]["window"]["currentWindow"] + str(self.msg_send_list[dest_name]["window"]["seqNumber"]))
+
+                _packet_details = self._encode_string(self.msg_send_list[dest_name]["window"] + str(self.msg_send_list[dest_name]["seqNumber"]))
                 message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + MESSAGE + _message + NEW_PACKET + _packet_details + NEW_LINE
+                self.msg_send_list[dest_name]["seqNumber"] = self.msg_send_list[dest_name]["seqNumber"] + 1
+                if self.msg_send_list[dest_name]["seqNumber"] > MAX_WINDOW_NUMBER:
+                    if self.msg_send_list[dest_name]["window"] == "A":
+                        self.msg_send_list[dest_name]["window"] = "B"
+                        self.msg_send_list[dest_name]["seqNumber"] = 0
+                    else:
+                        self.msg_send_list[dest_name]["window"] = "A"
+
             except KeyError:
                 self.msg_send_list.update({
                     dest_name: {
                     "receiveTime": time(),
-                    "window": {
-                        "currentWindow": "A",
-                        "seqNumber": 0
-                    }
+                    "window": "A",
+                    "seqNumber": 0
                     }
                     })
-                _packet_details = self._encode_string(self.msg_send_list[dest_name]["window"]["currentWindow"] + str(self.msg_send_list[dest_name]["window"]["seqNumber"]))
+
+                _packet_details = self._encode_string(self.msg_send_list[dest_name]["window"] + str(self.msg_send_list[dest_name]["seqNumber"]))
                 message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + MESSAGE + _message + INITIALIZE + _packet_details + NEW_LINE
             self._retransmission_list.update ({
                 dest_name: {
-                self.msg_send_list[dest_name]["window"]["currentWindow"] + str(self.msg_send_list[dest_name]["window"]["seqNumber"]): {
+                self.msg_send_list[dest_name]["window"] + str(self.msg_send_list[dest_name]["seqNumber"]): {
                     "ackExpected": True, # Initial value
                     "requestToRetransmit": message_to_send, # Initial value
                     "message": message
@@ -92,6 +94,7 @@ class UdpNetwork:
     def receive(self):
         while True:
             data, addr = self.socket.recvfrom(4096)
+            print(data)
             try:
                 if data.decode()[0].isalpha() and data.decode()[-1] == "\n": # Quick check if data is corrupted or not
                     message = data.decode()[:-1] # Remove new line
@@ -163,96 +166,44 @@ class UdpNetwork:
             message = message_[MESSAGE]
             name = message_[NAME]
 
-
-            self.send("", dest_name=message_[NAME], acknowledgement=True, info=message_[message_["label"]])
-
             try:
-                if (seq_number, message) in self.msg_received_list[name]["window"]["window" + window_cat]["buffer"]:
-                    return None
-                if self.msg_received_list[name]["window"]["window" + window_cat]["lastSeqNumber"] == seq_number:
+                if self.msg_received_list[name]["lastSeqNumber"] == message_[message_["label"]]:
                     return None
             except KeyError: # Does not exist at all. Let it initialize..
                 pass
 
             if message_["label"] == INITIALIZE:
+                expected_seq = "A1"
                 self.msg_received_list.update({
                     name: {
                     "receiveTime": time(),
-                    "window": {
-                        "currentWindow": window_cat, 
-                        "windowA": {
-                            "expectedSeqNumber": 0,                       
-                            "lastSeqNumber": -1,
-                            "buffer": list()
-                        },
-                        "windowB": {
-                            "expectedSeqNumber": 0,
-                            "lastSeqNumber": -1,
-                            "buffer": list()
-                        }
-                    }
+                    "expectedSeqWind": message_[message_["label"]],
+                    "lastSeqNumber": None
                     }
                     })
             
 
 
             self.msg_received_list[name]["receiveTime"] = time()
-            self.msg_received_list[name]["window"]["window" + window_cat]["lastSeqNumber"] = seq_number     
-            self.msg_received_list[name]["window"]["window" + window_cat]["buffer"].append((
-                seq_number,
-                message
-            )
-            )
-            if self.msg_received_list[name]["window"]["window" + window_cat]["expectedSeqNumber"] == seq_number:
-                if self.msg_received_list[name]["window"]["currentWindow"] == window_cat:
-                    buffer = list()
-                    copy_buffer = list() # Used to check how much can be taken from window
-                    self.msg_received_list[name]["window"]["window" + window_cat]["buffer"].sort(key=lambda tup: tup[0])
-                    seq_expected = 0
-                    for data in self.msg_received_list[name]["window"]["window" + window_cat]["buffer"]:
-                        copy_buffer.append(data)
 
-                    for idx, message in enumerate(copy_buffer):
-                        if idx > 0:
-                            if message[0] - self.msg_received_list[name]["window"]["window" + window_cat]["buffer"][idx-1][0] > 1:
-                                break
-                        self.msg_received_list[name]["window"]["window" + window_cat]["buffer"].pop(idx)
-                        buffer.append(message[1])
-                        seq_expected = message[0] + 1
+            if self.msg_received_list[name]["expectedSeqNumber"] != message_[message_["label"]]:
+                return None
+            else:
+                self.send("", dest_name=message_[NAME], acknowledgement=True, info=message_[message_["label"]])
+                self.msg_received_list[name]["lastSeqNumber"] = self.msg_received_list[name]["expectedSeqNumber"]
+                new_seq_number = seq_number + 1
 
-                    if seq_expected > MAX_WINDOW_NUMBER:
-                        if window_cat == "A":
-                            self.msg_received_list[name]["window"]["currentWindow"] = "B"
-                        else:
-                            self.msg_received_list[name]["window"]["currentWindow"] = "A"
-
-                        if self.msg_received_list[name]["window"]["window" + 
-                        self.msg_received_list[name]["window"]["currentWindow"]]["buffer"]:
-                            self.msg_received_list[name]["window"]["window" + 
-                        self.msg_received_list[name]["window"]["currentWindow"]]["buffer"].sort(key=lambda tup: tup[0])
-                            if self.msg_received_list[name]["window"]["window" + 
-                            self.msg_received_list[name]["window"]["currentWindow"]]["buffer"][0][0] == 0: # Beginning seq number is 0..
-                                copy_buffer = list()
-                                for data in self.msg_received_list[name]["window"]["window" + 
-                                self.msg_received_list[name]["window"]["currentWindow"]]["buffer"]:
-                                    copy_buffer.append(data)
-                                for data in copy_buffer:
-                                    if idx > 0:
-                                        if message[0] - self.msg_received_list[name]["window"]["window" + 
-                                        self.msg_received_list[name]["window"]["currentWindow"]]["buffer"][idx-1][0] > 1:
-                                            break
-                                    buffer.append(message[1])
-                                    seq_expected = message[0] + 1
-                        else:
-                            seq_expected = 0
-
-                    self.msg_received_list[name]["window"]["window" + 
-                    self.msg_received_list[name]["window"]["currentWindow"]]["expectedSeqNumber"] = seq_expected
-                    for message in buffer:
-                        print("Message from: " + name) # Gets username
-                        print("Contents: " + message) # Gets message                     
-                else:
-                    return None
+                if seq_number > MAX_WINDOW_NUMBER:
+                    if window_cat == "A":
+                        window_cat = "B"
+                        self.msg_received_list[name]["expectedSeqNumber"] = window_cat + "0"
+                    else:
+                        window_cat = "A"
+                        self.msg_received_list[name]["expectedSeqNumber"] = window_cat + new_seq_number
+                
+                print("Message from: " + name) # Gets username
+                print("Contents: " + message)
+            return None # G
             
         if message_["label"] == ACKNOWLEDGEMENT:
             try:
