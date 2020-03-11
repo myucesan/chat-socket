@@ -53,6 +53,7 @@ def client_process():
                 time.sleep(10)
                 print("Hello there! What is your name?: ")
             elif response[0] == Protocol.response_handshake.value:
+                udp_client.set_name(username)
                 print("Welcome " + str(username) + "! What would you like to do? Please write !help to see the commands.")
                 allow_receiving = True
     while True:
@@ -72,7 +73,7 @@ def client_process():
             dest_name = details[0]
             last_inserted_msg = details[1]
             request = Protocol.request_send.value + " " + dest_name + " " + last_inserted_msg
-            udp_client.send(last_inserted_msg, dest_name=dest_name, name=username, client_transmission=True)
+            udp_client.send(last_inserted_msg, dest_name=dest_name, client_transmission=True)
         elif command.startswith("!debug"):
             details = command.split(" ", 1)
             print(details)
@@ -133,7 +134,10 @@ def server_process():
                                 for user in online_users:
                                     print(user)
                             if response[0] == Protocol.response_send.value:
-                                print("You sent a message to " + dest_name + ": " + last_inserted_msg)
+                                print(dest_name)
+                                print(last_inserted_msg)
+                                # None value. Get it back
+                                # print("You sent a message to " + dest_name + ": " + last_inserted_msg)
                             if response[0] == Protocol.bad_request_header.value:
                                 print("Your message contains an error in the header. Please resend")
                             if response[0] == Protocol.bad_request_body.value:

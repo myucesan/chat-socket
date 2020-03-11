@@ -26,46 +26,65 @@ class UdpNetwork:
         self.server = (host, port)
         self.msg_received_list = dict()
         self.msg_send_list = dict()
-        self._retransmission_list = {
-            "ackExpected": False, # Initial value
-            "requestToRetransmit": None, # Initial value
-        }
-
+        self._retransmission_list = dict()
+        self.name = None
         self.last_delivery = None
         #Thread(target=self._clean_msg_lists).start()
+        Thread(target=self._retransmit_msgs).start()
 
-    def send(self, message, dest_name=None, name=None, client_transmission=False, acknowledgement=False):
-        print("I have just entered the send() function.")
+    def send(self, message, dest_name=None, client_transmission=False, acknowledgement=False, info=None):
         message_to_send = ""
         if client_transmission:
-            print("Client transmission")
-            message_to_send = Protocol.request_send.value + " " + dest_name + " " + message + NEW_LINE
-            # try:
-            #     message = Protocol.request_send.value + " " + dest_name + " " + NAME + name + MESSAGE + message + NEW_PACKET + "A1" + NEW_LINE # Window en sequence number
-            # except KeyError:
-            #     message = Protocol.request_send.value + " " + dest_name + " " + NAME + name + MESSAGE + message + INITIALIZE + "A1" + NEW_LINE # Window en sequence number
-            # print(message)
-            # print("Generated message ^")  
-            # message = Protocol.request_send.value + " " + dest_name + " " + "test\n"  
+            _name = self._encode_string(self.name)
+            _message = self._encode_string(message)
+            
+            try:
+                if self.msg_send_list[self.name]["window"]["seqNumber"]+1 > MAX_WINDOW_NUMBER:
+                    self.msg_send_list[self.name]["window"]["seqNumber"] = 0
+                    if self.msg_send_list[self.name]["window"]["currentWindow"] == "A":
+                        self.msg_send_list[self.name]["window"]["currentWindow"] = "B"
+                    else:
+                        self.msg_send_list[self.name]["window"]["currentWindow"] = "A"
+                else:
+                    self.msg_send_list[self.name]["window"]["seqNumber"] = self.msg_send_list[self.name]["window"]["seqNumber"] + 1 # Increment
+                _packet_details = self._encode_string(self.msg_send_list[self.name]["window"]["currentWindow"] + str(self.msg_send_list[self.name]["window"]["seqNumber"]))
+                message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + MESSAGE + _message + NEW_PACKET + _packet_details + NEW_LINE
+            except KeyError:
+                self.msg_send_list.update({
+                    self.name: {
+                    "receiveTime": time(),
+                    "window": {
+                        "currentWindow": "A",
+                        "seqNumber": 0
+                    }
+                    }
+                    })
+                _packet_details = self._encode_string(self.msg_send_list[self.name]["window"]["currentWindow"] + str(self.msg_send_list[self.name]["window"]["seqNumber"]))
+                message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + MESSAGE + _message + INITIALIZE + _packet_details + NEW_LINE
+            self._retransmission_list.update ({
+                dest_name: {
+                self.msg_send_list[self.name]["window"]["currentWindow"] + str(self.msg_send_list[self.name]["window"]["seqNumber"]): {
+                    "ackExpected": True, # Initial value
+                    "requestToRetransmit": message_to_send # Initial value
+            }}})
 
         elif acknowledgement:
-            message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + name + ACKNOWLEDGEMENT + "A1" + NEW_LINE # Window en sequence number
+            _name = self._encode_string(self.name)
+            _info = self._encode_string(info)
+            _dest_name = self._encode_string(dest_name)
+            message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + ACKNOWLEDGEMENT + _info + NEW_LINE # Window en sequence number
         else:
             message_to_send = message + NEW_LINE
-        print(message_to_send)
         self.socket.sendto(message_to_send.encode(), self.server)
 
     def receive(self):
-        print("I have just entered the receive.")
         while True:
             data, addr = self.socket.recvfrom(4096)
-            # print(data)
             if data.decode()[0].isalpha() and data.decode()[-1] == "\n": # Quick check if data is corrupted or not
                 message = data.decode()[:-1] # Remove new line
                 if message.startswith(Protocol.delivery.value):
-                    print("INVOKED")
                     self._process_delivery_string(message) # Method to handle known string
-                return message # return [message] doet die het maar opvolgende error even fixen
+                return [message] # return [message] doet die het maar opvolgende error even fixen
             else:
                 pass
 
@@ -86,7 +105,7 @@ class UdpNetwork:
             ACKNOWLEDGEMENT: "",
             INITIALIZE: "",
             NEW_PACKET: "",
-            "Label": ""
+            "label": ""
         }
 
         state = None
@@ -103,13 +122,13 @@ class UdpNetwork:
                 elif character == MESSAGE:
                     state = MESSAGE
                 elif character == ACKNOWLEDGEMENT:
-                    message_list["Label"] = ACKNOWLEDGEMENT
+                    message_list["label"] = ACKNOWLEDGEMENT
                     state = ACKNOWLEDGEMENT
                 elif character ==  NEW_PACKET:
-                    message_list["Label"] = NEW_PACKET
+                    message_list["label"] = NEW_PACKET
                     state = NEW_PACKET
                 elif character == INITIALIZE:
-                    message_list["Label"] = INITIALIZE
+                    message_list["label"] = INITIALIZE
                     state = INITIALIZE
                 else:
                     message_list[state] += character
@@ -119,14 +138,43 @@ class UdpNetwork:
         return message_list
 
     def _process_delivery_string(self, message):
-        message_ = message[1].split(" ", 1)[1]
+        message_ = self._decode_string(message.split(" ", 1)[1].split(" ", 1)[1])
         print(message_)
+        if message_["label"] == INITIALIZE:
+            self.send("", dest_name=message_[NAME], acknowledgement=True, info=message_[INITIALIZE])
+            #Discard Duplicates
+            #Handle order
 
-    def _retransmit_timer(self):
+        if message_["label"] == NEW_PACKET:
+            self.send("", dest_name=message_[NAME], acknowledgement=True, info=message_[NEW_PACKET])
+            #Discard Duplicates
+            #Handle order
+            
+        if message_["label"] == ACKNOWLEDGEMENT:
+            try:
+                self._retransmission_list[message_[NAME]][message_[ACKNOWLEDGEMENT]]["ackExpected"] = False
+            except KeyError: # Simply means it no longer exists. Just discard.
+                return None
+
+            
+
+    def _retransmit_msgs(self):
         sleep(self.RETRANSMISSION_TIME * 2)
-        while self._retransmission_list["ackExpected"]:
-            self.send(self._retransmission_list["requestToRetransmit"])
+        while True:
+            for retransmission_name in self._retransmission_list.keys():
+                if not retransmission_name:
+                    self._retransmission_list.pop(retransmission_name)
+                else:
+                    for retransmission in self._retransmission_list[retransmission_name].keys():
+                            if self._retransmission_list[retransmission_name][retransmission]["ackExpected"]:
+                                self.send(self._retransmission_list[retransmission_name][retransmission]["requestToRetransmit"])
+                            else:
+                                self._retransmission_list[retransmission_name].pop(retransmission)
+                    
             sleep(self.RETRANSMISSION_TIME)
+
+    def set_name(self, name):
+        self.name = name
 
     def close(self):
         self.socket.close()
