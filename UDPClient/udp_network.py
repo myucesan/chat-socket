@@ -49,19 +49,19 @@ class UdpNetwork:
             _message = self._encode_string(message)
             
             try:
-                if self.msg_send_list[self.name]["window"]["seqNumber"]+1 > MAX_WINDOW_NUMBER:
-                    self.msg_send_list[self.name]["window"]["seqNumber"] = 0
-                    if self.msg_send_list[self.name]["window"]["currentWindow"] == "A":
-                        self.msg_send_list[self.name]["window"]["currentWindow"] = "B"
+                if self.msg_send_list[dest_name]["window"]["seqNumber"]+1 > MAX_WINDOW_NUMBER:
+                    self.msg_send_list[dest_name]["window"]["seqNumber"] = 0
+                    if self.msg_send_list[dest_name]["window"]["currentWindow"] == "A":
+                        self.msg_send_list[dest_name]["window"]["currentWindow"] = "B"
                     else:
-                        self.msg_send_list[self.name]["window"]["currentWindow"] = "A"
+                        self.msg_send_list[dest_name]["window"]["currentWindow"] = "A"
                 else:
-                    self.msg_send_list[self.name]["window"]["seqNumber"] = self.msg_send_list[self.name]["window"]["seqNumber"] + 1 # Increment
-                _packet_details = self._encode_string(self.msg_send_list[self.name]["window"]["currentWindow"] + str(self.msg_send_list[self.name]["window"]["seqNumber"]))
+                    self.msg_send_list[dest_name]["window"]["seqNumber"] = self.msg_send_list[dest_name]["window"]["seqNumber"] + 1 # Increment
+                _packet_details = self._encode_string(self.msg_send_list[dest_name]["window"]["currentWindow"] + str(self.msg_send_list[dest_name]["window"]["seqNumber"]))
                 message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + MESSAGE + _message + NEW_PACKET + _packet_details + NEW_LINE
             except KeyError:
                 self.msg_send_list.update({
-                    self.name: {
+                    dest_name: {
                     "receiveTime": time(),
                     "window": {
                         "currentWindow": "A",
@@ -69,11 +69,11 @@ class UdpNetwork:
                     }
                     }
                     })
-                _packet_details = self._encode_string(self.msg_send_list[self.name]["window"]["currentWindow"] + str(self.msg_send_list[self.name]["window"]["seqNumber"]))
+                _packet_details = self._encode_string(self.msg_send_list[dest_name]["window"]["currentWindow"] + str(self.msg_send_list[dest_name]["window"]["seqNumber"]))
                 message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + MESSAGE + _message + INITIALIZE + _packet_details + NEW_LINE
             self._retransmission_list.update ({
                 dest_name: {
-                self.msg_send_list[self.name]["window"]["currentWindow"] + str(self.msg_send_list[self.name]["window"]["seqNumber"]): {
+                self.msg_send_list[dest_name]["window"]["currentWindow"] + str(self.msg_send_list[dest_name]["window"]["seqNumber"]): {
                     "ackExpected": True, # Initial value
                     "requestToRetransmit": message_to_send, # Initial value
                     "message": message
