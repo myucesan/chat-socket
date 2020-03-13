@@ -6,7 +6,7 @@ from time import sleep, time
 from threading import Thread
 import sys
 import copy
-
+import crc_help
 NEW_LINE = "\n"
 MAX_WINDOW_NUMBER = 7
 INITIAL_SEQUENCE = "0A"
@@ -21,7 +21,7 @@ ACKNOWLEDGEMENT = "A"
 
 class UdpNetwork:
     
-    RETRANSMISSION_TIME = 0.05
+    RETRANSMISSION_TIME = 0.005
 
     def __init__(self, host="18.195.107.195", port=5382):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -43,17 +43,19 @@ class UdpNetwork:
                 if (now - self.msg_received_list[key]["receiveTime"]) > 9:
                     self.msg_received_list.pop(key)
 
-    def send(self, message, dest_name=None, client_transmission=False, acknowledgement=False, info=None):
+    def send(self, message, dest_name=None, resend=False, client_transmission=False, acknowledgement=False, info=None):
         message_to_send = ""
         if client_transmission:
             _name = self._encode_string(self.name)
             _message = self._encode_string(message)
             
             try:
-
+                
                 _packet_details = self._encode_string(self.msg_send_list[dest_name]["window"] + str(self.msg_send_list[dest_name]["seqNumber"]))
-                message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + MESSAGE + _message + NEW_PACKET + _packet_details + NEW_LINE
-
+                message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + MESSAGE + _message + NEW_PACKET + _packet_details 
+                mock_receive_msg = Protocol.delivery.value + " " + self.name + " " + NAME + _name + MESSAGE + _message + NEW_PACKET + _packet_details 
+                self.socket.sendto(message_to_send.encode() + crc_help.convert_crc(mock_receive_msg) + NEW_LINE.encode(), self.server)
+                print(message_to_send.encode() + crc_help.convert_crc(mock_receive_msg) + NEW_LINE.encode())
             except KeyError:
                 self.msg_send_list.update({
                     dest_name: {
@@ -65,13 +67,14 @@ class UdpNetwork:
                     })
 
                 _packet_details = self._encode_string(self.msg_send_list[dest_name]["window"] + str(self.msg_send_list[dest_name]["seqNumber"]))
-                message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + MESSAGE + _message + INITIALIZE + _packet_details + NEW_LINE
-            
+                message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + MESSAGE + _message + INITIALIZE + _packet_details 
+                mock_receive_msg = Protocol.delivery.value + " " + self.name + " " + NAME + _name + MESSAGE + _message + INITIALIZE + _packet_details
+                self.socket.sendto(message_to_send.encode() + crc_help.convert_crc(mock_receive_msg) + NEW_LINE.encode(), self.server)
             self.msg_send_list[dest_name]["buffer"].update(
                 {self.msg_send_list[dest_name]["window"] + str(self.msg_send_list[dest_name]["seqNumber"]):
                 {
                     "ackExpected": True, # Initial value
-                    "requestToRetransmit": message_to_send, # Initial value
+                    "requestToRetransmit": message_to_send.encode() + crc_help.convert_crc(mock_receive_msg) + NEW_LINE.encode(), # Initial value
                     "message": message                    
                 }})
 
@@ -89,11 +92,14 @@ class UdpNetwork:
             _name = self._encode_string(self.name)
             _info = self._encode_string(info)
             _dest_name = self._encode_string(dest_name)
-            message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + ACKNOWLEDGEMENT + _info + NEW_LINE # Window en sequence number
-
+            message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + ACKNOWLEDGEMENT + _info  # Window en sequence number
+            mock_receive_msg = Protocol.delivery.value + " " + self.name + " " + NAME + _name + ACKNOWLEDGEMENT + _info
+            self.socket.sendto(message_to_send.encode() + crc_help.convert_crc(mock_receive_msg) + NEW_LINE.encode(), self.server)
+        elif resend:
+            self.socket.sendto(message, self.server)
         else:
             message_to_send = message + NEW_LINE
-        self.socket.sendto(message_to_send.encode(), self.server)
+            self.socket.sendto(message_to_send.encode(), self.server)
 
     def receive(self):
         while True:
@@ -102,13 +108,14 @@ class UdpNetwork:
                 if data.decode()[0].isalpha() and data.decode()[-1] == "\n": # Quick check if data is corrupted or not
                     message = data.decode()[:-1] # Remove new line
                     if message.startswith(Protocol.delivery.value):
-                        self._process_delivery_string(message) # Method to handle known string
+                        self._process_delivery_string(data[:-1]) # Method to handle in bytes cause of crc
                         return None
                     return [message] 
-                else: 
+                else:
+                    self._process_delivery_string(data[:-1])
                     return None
-            except UnicodeDecodeError:
-                print("CORRUPT")
+            except UnicodeDecodeError: # Data corrupted? Confirm with CRC for delivery
+                self._process_delivery_string(data[:-1])
                
 
     def _encode_string(self, message): # Encode with escape bytes, so that information can be sent to client UDP
@@ -161,6 +168,11 @@ class UdpNetwork:
         return message_list
 
     def _process_delivery_string(self, message):
+        result = crc_help.detect_crc(message)
+        if not result[0]:
+            print("CRC CHECK FAILED - INVALID DATA")
+            return None # Data corrupted. Discard.
+        message = result[1] # Passed CRC. Lets handle it.
         message_ = self._decode_string(message.split(" ", 1)[1].split(" ", 1)[1])
         if message_["label"] == INITIALIZE or message_["label"] == NEW_PACKET:
 
@@ -188,8 +200,6 @@ class UdpNetwork:
 
 
             self.msg_received_list[name]["receiveTime"] = time()
-            print(self.msg_received_list[name]["expectedSeqNumber"])
-            print(message_[message_["label"]])
             if self.msg_received_list[name]["expectedSeqNumber"] != message_[message_["label"]]:
                 return None
             else:
@@ -208,7 +218,7 @@ class UdpNetwork:
                 
                 print("Message from: " + name) # Gets username
                 print("Contents: " + message)
-            return None # G
+            return None 
             
         if message_["label"] == ACKNOWLEDGEMENT:
             try:
@@ -228,7 +238,7 @@ class UdpNetwork:
             for retransmission_name in copy_buffer.keys():
                 for retransmission in copy_buffer[retransmission_name]["buffer"].keys():
                         if self.msg_send_list[retransmission_name]["buffer"][retransmission]["ackExpected"]:
-                            self.send(copy_buffer[retransmission_name]["buffer"][retransmission]["requestToRetransmit"])
+                            self.send(copy_buffer[retransmission_name]["buffer"][retransmission]["requestToRetransmit"], resend=True)
                         else:
                             print("You sent a message to " + retransmission_name + ": " + self.msg_send_list[retransmission_name]["buffer"][retransmission]["message"])
                             self.msg_send_list[retransmission_name]["buffer"].pop(retransmission)
