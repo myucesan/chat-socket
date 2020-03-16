@@ -12,6 +12,7 @@ from udp_network import UdpNetwork
 import threading
 from protocol import Protocol
 from commands import Command
+import time
 udp_client = UdpNetwork()
 
 allow_receiving = False # Used to allow the server_process method to start receiving after user has given a valid name
