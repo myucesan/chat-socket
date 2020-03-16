@@ -134,21 +134,12 @@ def server_process():
                                 print("The online users in the network are: ")
                                 for user in online_users:
                                     print(user)
-                            # if response[0] == Protocol.response_send.value:
-                            #     print(dest_name)
-                            #     print(last_inserted_msg)
-                                # None value. Get it back
-                                # print("You sent a message to " + dest_name + ": " + last_inserted_msg)
                             if response[0] == Protocol.bad_request_header.value:
                                 print("Your message contains an error in the header. Please resend")
                             if response[0] == Protocol.bad_request_body.value:
                                 print("Your message contains an error in the body. Please resend")
                             if response[0] ==  Protocol.unknown.value:
                                 print("The user you sent the message to does not exist.")
-                            # if response[0] == Protocol.delivery.value:
-                            #     received = response[1].split(" ", 1)
-                            #     print("Message from: " + received[0]) # Gets username
-                            #     print("Contents: " + received[1]) # Gets message
                 except ConnectionAbortedError:
                     print("Goodbye.")
                     break
