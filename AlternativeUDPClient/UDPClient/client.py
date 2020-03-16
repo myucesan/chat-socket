@@ -71,13 +71,15 @@ def client_process():
             udp_client.send(request)
         elif command.startswith("@"):
             details = command[1:].split(" ", 1)
-            dest_name = details[0]
-            last_inserted_msg = details[1]
-            request = Protocol.request_send.value + " " + dest_name + " " + last_inserted_msg
-            udp_client.send(last_inserted_msg, dest_name=dest_name, client_transmission=True)
+            if len(details) == 2:
+                dest_name = details[0]
+                last_inserted_msg = details[1]
+                request = Protocol.request_send.value + " " + dest_name + " " + last_inserted_msg
+                udp_client.send(last_inserted_msg, dest_name=dest_name, client_transmission=True)
+            else:
+                print("You did not even write a message. Retry.")
         elif command.startswith("!debug"):
             details = command.split(" ", 1)
-            print(details)
             if details[1].startswith("drop"):
                 value = details[1].split(" ", 1)[1]
                 request = Command.set_drop.value + " " + value
@@ -99,11 +101,8 @@ def client_process():
                 request = Command.set_burst_len + " " + values[1] + " " + values[2]
                 udp_client.send(request) 
             if details[1].startswith("delay-len"):
-                print("Invoked")
                 values = details[1].split(" ", 3)
-                print("Going...")
                 request = Command.set_delay_len.value + " " + values[1] + " " + values[2]
-                print(request)
                 udp_client.send(request) 
             if details[1] == "reset":
                 request = Command.reset.value
@@ -140,6 +139,8 @@ def server_process():
                                 print("Your message contains an error in the body. Please resend")
                             if response[0] ==  Protocol.unknown.value:
                                 print("The user you sent the message to does not exist.")
+                            if response[0] == Protocol.set_ok.value:
+                                print("Debug has been set.")
                 except ConnectionAbortedError:
                     print("Goodbye.")
                     break

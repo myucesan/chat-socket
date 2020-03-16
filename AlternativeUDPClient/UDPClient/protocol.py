@@ -22,3 +22,4 @@ class Protocol(Enum):
     busy = "BUSY"
     bad_request_header = "BAD-RQST-HDR"
     bad_request_body = "BAD-RQST-BODY"
+    set_ok = "SET-OK"
