@@ -30,7 +30,6 @@ def detect_crc(data):
     # As remainder has to be 32 bits, we append 0s in beginning, if len of remainder is less than 32
     while len(remainder_string) != len(POLYNOMIAL)-1:
         remainder_string ="0" + remainder_string
-    print(data)
     
     # Extract the message from the remainder
     message_data = data[:-4]
@@ -51,8 +50,6 @@ def detect_crc(data):
                 to_calculate = to_calculate[:counter+id] + str(result) + to_calculate[counter+id+1:]
                 
         counter += 1
-
-    print(to_calculate.count("1"))
 
     if to_calculate.count("1") > 0:
         return [False, None]

@@ -55,7 +55,6 @@ class UdpNetwork:
                 message_to_send = Protocol.request_send.value + " " + dest_name + " " + NAME + _name + MESSAGE + _message + NEW_PACKET + _packet_details 
                 mock_receive_msg = Protocol.delivery.value + " " + self.name + " " + NAME + _name + MESSAGE + _message + NEW_PACKET + _packet_details 
                 self.socket.sendto(message_to_send.encode() + crc_help.convert_crc(mock_receive_msg) + NEW_LINE.encode(), self.server)
-                print(message_to_send.encode() + crc_help.convert_crc(mock_receive_msg) + NEW_LINE.encode())
             except KeyError:
                 self.msg_send_list.update({
                     dest_name: {
