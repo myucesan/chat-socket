@@ -9,7 +9,7 @@ import copy
 import crc_help
 NEW_LINE = "\n"
 MAX_WINDOW_NUMBER = 7
-INITIAL_SEQUENCE = "0A"
+INITIAL_SEQUENCE = "A0"
 
 # States
 ESCAPE = "/"
@@ -87,7 +87,8 @@ class UdpNetwork:
                 {self.msg_send_list[dest_name]["window"] + str(self.msg_send_list[dest_name]["seqNumber"]):
                 {
                     "ackExpected": True, # Initial value
-                    "requestToRetransmit": message_to_send.encode() + crc_help.convert_crc(mock_receive_msg) + NEW_LINE.encode(), # Initial value
+                    "requestToRetransmit": message_to_send.encode(),
+                    "mockToRecalculate": mock_receive_msg, 
                     "message": message                    
                 }})
 
@@ -197,7 +198,6 @@ class UdpNetwork:
     def _process_delivery_string(self, message):
         result = crc_help.detect_crc(message)
         if not result[0]:
-            print("CRC CHECK FAILED - INVALID DATA")
             return None # Data corrupted. Discard.
         message = result[1] # Passed CRC. Lets handle it.
         message_ = self._decode_string(message.split(" ", 1)[1].split(" ", 1)[1])
@@ -266,7 +266,9 @@ class UdpNetwork:
                 for retransmission in copy_buffer[retransmission_name]["buffer"].keys():
                     try:
                         if self.msg_send_list[retransmission_name]["buffer"][retransmission]["ackExpected"]:
-                            self.send(copy_buffer[retransmission_name]["buffer"][retransmission]["requestToRetransmit"], resend=True)
+                            self.send(copy_buffer[retransmission_name]["buffer"][retransmission]["requestToRetransmit"] + 
+                                        crc_help.convert_crc(copy_buffer[retransmission_name]["buffer"][retransmission]["mockToRecalculate"]) +
+                                        NEW_LINE.encode(), resend=True)
                         else:
                             print("You sent a message to " + retransmission_name + ": " + self.msg_send_list[retransmission_name]["buffer"][retransmission]["message"])
                             self.msg_send_list[retransmission_name]["buffer"].pop(retransmission)
